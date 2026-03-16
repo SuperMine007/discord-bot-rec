@@ -1363,7 +1363,7 @@ async def download_cloudflared():
                         if system == "linux":
                             os.chmod(cf_bin, 0o755)
                         print("✅ Cloudflared Downlaoded!")
-                        return cf_bin
+                        return f"./{cf_bin}" if system == "linux" else cf_bin
         except Exception as e:
             print(f"❌ Failed to download Cloudflared: {e}")
             return None

@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Bot Web Control</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        
+        body {
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at top right, #334155, transparent 40%),
+                              radial-gradient(circle at bottom left, #1e1b4b, transparent 40%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Glassmorphism */
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        /* Utilities */
+        .flex { display: flex; }
+        .flex-col { display: flex; flex-direction: column; }
+        .items-center { align-items: center; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-4 { gap: 1rem; }
+        .w-full { width: 100%; }
+
+        /* Login Overlay */
+        #loginOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            background: rgba(15, 23, 42, 0.95); z-index: 1000; transition: opacity 0.5s ease;
+        }
+        .login-box { padding: 2.5rem; width: 90%; max-width: 400px; text-align: center; }
+        .login-box h2 { margin-bottom: 0.5rem; font-weight: 600; font-size: 1.5rem; }
+        .login-box p { color: var(--text-muted); margin-bottom: 2rem; font-size: 0.9rem; }
+        
+        /* Inputs & Buttons */
+        .input-group { position: relative; width: 100%; margin-bottom: 1rem; }
+        .input-group i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+        input[type="text"], input[type="password"], input[type="number"], select {
+            width: 100%; padding: 0.8rem 1rem 0.8rem 2.8rem;
+            background: rgba(15, 23, 42, 0.5); border: 1px solid var(--glass-border);
+            border-radius: 8px; color: white; font-size: 0.95rem; outline: none; transition: border-color 0.3s;
+        }
+        select { padding-left: 1rem; appearance: auto; }
+        input:focus, select:focus { border-color: var(--primary); }
+
+        .btn {
+            width: 100%; padding: 0.8rem; border: none; border-radius: 8px;
+            font-size: 0.95rem; font-weight: 600; color: white;
+            cursor: pointer; transition: all 0.2s; display: inline-flex;
+            align-items: center; justify-content: center; gap: 0.5rem;
+        }
+        .btn-primary { background: var(--primary); }
+        .btn-primary:hover { background: var(--primary-hover); transform: translateY(-2px); }
+        .btn-small { padding: 0.5rem 1rem; font-size: 0.85rem; width: auto; }
+
+        /* Main Dashboard */
+        #mainApp {
+            display: none; padding: 1rem; max-width: 1400px; width: 100%; margin: 0 auto;
+            flex-grow: 1; animation: fadeIn 0.8s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Header Area */
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding: 1rem 1.5rem; flex-wrap: wrap; gap: 1rem; }
+        .bot-profile { display: flex; align-items: center; gap: 1rem; }
+        .bot-avatar { width: 45px; height: 45px; border-radius: 50%; background: var(--primary); display: flex; justify-content: center; align-items: center; font-size: 1.5rem; box-shadow: 0 0 15px rgba(99, 102, 241, 0.5); }
+        .bot-info h1 { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.2rem; }
+        .bot-info p { font-size: 0.85rem; color: var(--text-muted); }
+        
+        .status-indicators { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+        .status-badge { background: rgba(34, 197, 94, 0.1); color: #4ade80; padding: 0.4rem 0.8rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 0.4rem; border: 1px solid rgba(34,197,94,0.2); }
+        .follow-badge { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border-color: rgba(59,130,246,0.2); display: none; }
+
+        /* Layout Grid */
+        .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+        @media(min-width: 1024px) { .dashboard-grid { grid-template-columns: 2fr 1fr; } }
+        
+        /* Sections */
+        .panel { padding: 1.5rem; margin-bottom: 1.5rem; }
+        .section-title { font-size: 1.1rem; margin-bottom: 1rem; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+
+        /* Grid specific for Buttons */
+        .action-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 0.8rem; margin-bottom: 1rem; }
+        @media(max-width: 400px) { .action-grid { grid-template-columns: repeat(2, 1fr); } }
+        
+        .action-btn {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border);
+            padding: 1rem 0.5rem; border-radius: 10px; color: white; cursor: pointer;
+            transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+            text-align: center; font-size: 0.85rem;
+        }
+        .action-btn i { font-size: 1.4rem; color: var(--text-main); }
+        .action-btn:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-2px); }
+        .action-btn:active { transform: translateY(0); }
+        
+        /* Color Code Buttons */
+        .btn-grn i { color: var(--success); } .btn-grn:hover { border-color: var(--success); }
+        .btn-red i { color: var(--danger); } .btn-red:hover { border-color: var(--danger); background: rgba(239, 68, 68, 0.1); }
+        .btn-blu i { color: var(--info); } .btn-blu:hover { border-color: var(--info); }
+        .btn-ylw i { color: var(--warning); } .btn-ylw:hover { border-color: var(--warning); }
+        .btn-pur i { color: var(--primary); } .btn-pur:hover { border-color: var(--primary); }
+
+        /* Form Controls rows */
+        .control-row { display: flex; gap: 0.8rem; margin-bottom: 0.8rem; align-items: center; flex-wrap: wrap; }
+        .control-row .input-group { margin-bottom: 0; flex-grow: 1; min-width: 150px; }
+        .full-width-mobile { flex: auto; }
+        
+        @media(max-width: 600px) {
+            .full-width-mobile { width: 100%; flex-basis: 100%; }
+            .control-row .input-group { width: 100%; flex-basis: 100%; }
+            .control-row button { width: 100% !important; }
+        }
+
+        /* Soundpad Row */
+        .soundpad-row { display: flex; justify-content: center; gap: 1rem; margin-top: 1rem; background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 12px; flex-wrap: wrap; }
+        .round-btn { width: 45px; height: 45px; border-radius: 50%; border: none; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 1.1rem; color: white; transition: all 0.2s; }
+        .round-btn:hover { transform: scale(1.1); }
+        .round-btn:active { transform: scale(0.9); }
+        
+        /* Utilities Area */
+        .now-playing { text-align: center; margin-top: 0.8rem; font-size: 0.85rem; color: var(--text-muted); min-height: 1.5rem; }
+        
+        /* File Upload styling */
+        .upload-btn-wrapper { position: relative; overflow: hidden; display: inline-block; cursor: pointer; width: 100%; }
+        .upload-btn-wrapper input[type="file"] { position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; height: 100%; width: 100%; }
+
+        /* Downloads */
+        .download-item { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem; background: rgba(0, 0, 0, 0.2); border-radius: 8px; margin-bottom: 0.5rem; border: 1px solid transparent; }
+        .download-item:hover { background: rgba(0, 0, 0, 0.4); border-color: var(--glass-border); }
+        .dl-info { display: flex; flex-direction: column; gap: 0.2rem; overflow: hidden; }
+        .dl-name { font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+        .dl-meta { font-size: 0.75rem; color: var(--text-muted); }
+        .dl-btn { background: transparent; color: var(--primary); border: 1px solid var(--primary); width: 35px; height: 35px; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: all 0.2s; flex-shrink: 0; }
+        .dl-btn:hover { background: var(--primary); color: white; }
+
+        /* Terminal Logs */
+        .terminal { background: #000; padding: 1rem; border-radius: 12px; font-family: monospace; height: 250px; overflow-y: auto; color: #4ade80; font-size: 0.8rem; border: 1px solid #333; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+        .terminal p { margin-bottom: 0.3rem; line-height: 1.4; border-bottom: 1px dashed #222; padding-bottom: 0.2rem; word-break: break-all; }
+        .terminal p:last-child { border-bottom: none; }
+        .terminal .log-cmd { color: #f472b6; }
+        .terminal .log-user { color: #60a5fa; }
+        .terminal .log-error { color: var(--danger); }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <!-- Login Screen -->
+    <div id="loginOverlay">
+        <div class="glass login-box">
+            <i class="fa-solid fa-microphone-lines" style="font-size: 3rem; color: var(--primary); margin-bottom: 1rem;"></i>
+            <h2>System Authentication</h2>
+            <p>Enter the bot's secret key to securely access the dashboard.</p>
+            <div class="input-group">
+                <i class="fa-solid fa-key"></i>
+                <input type="password" id="secretKey" placeholder="Enter Secret Key..." autocomplete="off">
+            </div>
+            <button class="btn btn-primary" onclick="login()">
+                <i class="fa-solid fa-unlock-keyhole"></i> Login
+            </button>
+        </div>
+    </div>
+
+    <!-- Discord Token Overlay (Dynamic Fallback) -->
+    <div id="tokenOverlay" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; justify-content: center; align-items: center; background: rgba(15, 23, 42, 0.95); z-index: 1000;">
+        <div class="glass login-box" style="border-color: rgba(239, 68, 68, 0.5);">
+            <i class="fa-brands fa-discord" style="font-size: 3rem; color: #5865F2; margin-bottom: 1rem;"></i>
+            <h2 style="color: #f8fafc;">Discord Token Required</h2>
+            <p id="tokenErrorTxt" style="color: #ef4444; font-weight: 500;">Bot token is missing or invalid/banned.</p>
+            <p>Please provide a valid bot token to resume operations. The webhook will stay alive.</p>
+            <div class="input-group">
+                <i class="fa-solid fa-key"></i>
+                <input type="password" id="discordTokenInput" placeholder="Paste Discord Bot Token..." autocomplete="off">
+            </div>
+            <button class="btn" style="background:#5865F2; color:white;" onclick="submitToken()">
+                <i class="fa-solid fa-plug"></i> Connect Bot
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="mainApp">
+        <header class="glass">
+            <div class="bot-profile">
+                <div class="bot-avatar"><i class="fa-solid fa-robot"></i></div>
+                <div class="bot-info">
+                    <h1 id="botDisplayName">RecorderBot #1234</h1>
+                    <p id="botUsername">@recorder_bot</p>
+                </div>
+            </div>
+            <div class="status-indicators">
+                <button class="btn btn-primary btn-small" style="font-size: 0.75rem; padding: 0.3rem 0.6rem; height: auto;" onclick="document.getElementById('tokenOverlay').style.display='flex'">Change Token</button>
+                <div class="status-badge" id="connStatus"><i class="fa-solid fa-circle-check"></i> System Online</div>
+                <div class="status-badge follow-badge" id="followBadge"><i class="fa-solid fa-paw"></i> Following: <span id="followName" style="margin-left:4px;">None</span></div>
+            </div>
+        </header>
+
+        <div class="dashboard-grid">
+            
+            <!-- Left Column: Primary Controls -->
+            <div class="flex-col gap-4">
+                
+                <!-- 🎙️ User Recorder Controls -->
+                <div class="glass panel">
+                    <h3 class="section-title"><i class="fa-solid fa-microphone"></i> Voice Recorder Operations</h3>
+                    
+                    <div class="action-grid">
+                        <button class="action-btn btn-blu" onclick="promptJoinVC()"><i class="fa-solid fa-right-to-bracket"></i><span>Join User VC</span></button>
+                        <button class="action-btn btn-pur" onclick="promptJoinID()"><i class="fa-solid fa-hashtag"></i><span>Join ID</span></button>
+                        <button class="action-btn btn-ylw" onclick="runCmd('+autorec on merged')"><i class="fa-solid fa-rotate"></i><span>AutoRec</span></button>
+                        <button class="action-btn btn-grn" onclick="promptFollow()"><i class="fa-solid fa-paw"></i><span>Follow</span></button>
+                        <button class="action-btn btn-ylw" onclick="runCmd('+m')"><i class="fa-solid fa-microphone-slash"></i><span>Mute</span></button>
+                        <button class="action-btn btn-ylw" onclick="runCmd('+deaf')"><i class="fa-solid fa-headphones"></i><span>Deafen</span></button>
+                    </div>
+
+                    <div class="action-grid" style="grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));">
+                        <button class="action-btn" style="border-color: #f472b6;" onclick="runCmd('+record')"><i class="fa-solid fa-file-audio" style="color: #f472b6;"></i><span>Record (Separate)</span></button>
+                        <button class="action-btn" style="border-color: #ef4444;" onclick="runCmd('+recordall')"><i class="fa-solid fa-compact-disc" style="color: #ef4444;"></i><span>Record (Merged)</span></button>
+                        <button class="action-btn" style="border-color: #8b5cf6; background: rgba(139, 92, 246, 0.1);" onclick="runCmd('+recordme')"><i class="fa-solid fa-sliders" style="color: #8b5cf6;"></i><span>STUDIO MODE</span></button>
+                    </div>
+                    
+                    <div class="action-grid" style="grid-template-columns: repeat(2, 1fr);">
+                        <button class="action-btn btn-red" onclick="runCmd('+stop')"><i class="fa-solid fa-stop"></i><span>Stop & Upload</span></button>
+                        <button class="action-btn btn-red" onclick="runCmd('+dc')"><i class="fa-solid fa-phone-slash"></i><span>Stop & Disconnect</span></button>
+                    </div>
+                </div>
+
+                <!-- 🎵 Universal Player & Soundpad -->
+                <div class="glass panel">
+                    <h3 class="section-title"><i class="fa-solid fa-music"></i> Universal Media Player</h3>
+                    
+                    <!-- Basic Play/Upload Row -->
+                    <div class="control-row">
+                        <div class="input-group">
+                            <i class="fa-solid fa-link"></i>
+                            <input type="text" id="playInput" placeholder="URL or Song Name to Play...">
+                        </div>
+                        <button class="btn btn-primary" style="width:auto;" onclick="playMediaInput()"><i class="fa-solid fa-play"></i> Play</button>
+                        
+                        <div class="upload-btn-wrapper" style="width:auto;">
+                            <button class="btn btn-primary" style="background: rgba(255,255,255,0.1);"><i class="fa-solid fa-upload"></i> Local file</button>
+                            <input type="file" onchange="uploadAndPlay(this)" accept="audio/*, video/*" />
+                        </div>
+                    </div>
+
+                    <!-- TTS & Utility Row -->
+                    <div class="control-row">
+                        <div class="input-group">
+                            <i class="fa-solid fa-comment-dots"></i>
+                            <input type="text" id="ttsInput" placeholder="Type message for TTS...">
+                        </div>
+                        <select id="ttsVoice" class="full-width-mobile" style="padding: 0.8rem; background: rgba(15,23,42,0.5); color:white; border-radius:8px; border:1px solid var(--glass-border);">
+                            <option value="">Default Voice</option>
+                            <option value="us_female">US Female</option>
+                            <option value="uk_male">UK Male</option>
+                            <option value="arab_female">Arab Female</option>
+                        </select>
+                        <button class="btn btn-primary full-width-mobile" style="width:auto;" onclick="sendTTS()"><i class="fa-solid fa-bullhorn"></i> Speak</button>
+                    </div>
+
+                    <!-- Media Operations Actions -->
+                    <div class="action-grid" style="margin-top:1rem; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));">
+                        <button class="action-btn btn-pur" onclick="promptTrim()"><i class="fa-solid fa-scissors"></i><span>Trim Audio</span></button>
+                        <button class="action-btn btn-pur" onclick="promptUploadQuality()"><i class="fa-solid fa-cloud-arrow-up"></i><span>Compress URL</span></button>
+                        <button class="action-btn btn-pur" onclick="promptSS()"><i class="fa-solid fa-camera"></i><span>Screenshot</span></button>
+                        <button class="action-btn btn-blu" onclick="runCmd('+queue')"><i class="fa-solid fa-list"></i><span>Queue</span></button>
+                        <button class="action-btn btn-blu" onclick="runCmd('+bass')"><i class="fa-solid fa-wave-square"></i><span>Bass Mode</span></button>
+                        <button class="action-btn btn-blu" onclick="promptVol()"><i class="fa-solid fa-volume-high"></i><span>Volume 0-500</span></button>
+                    </div>
+
+                    <!-- Soundpad Controls -->
+                    <div class="soundpad-row">
+                        <button class="round-btn" style="background:#4ade80;" onclick="runCmd('+resume')" title="Resume"><i class="fa-solid fa-play"></i></button>
+                        <button class="round-btn" style="background:#facc15;" onclick="runCmd('+pause')" title="Pause"><i class="fa-solid fa-pause"></i></button>
+                        <button class="round-btn" style="background:#3b82f6;" onclick="runCmd('+skip')" title="Skip"><i class="fa-solid fa-forward-step"></i></button>
+                        <button class="round-btn" style="background:#ef4444;" onclick="runCmd('+pstop')" title="Stop Player"><i class="fa-solid fa-stop"></i></button>
+                    </div>
+                    <div class="now-playing" id="nowPlayingText">Ready...</div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Tools & Logs -->
+            <div class="flex-col gap-4">
+                
+                <!-- Terminal Command Bar -->
+                <div class="glass panel" style="padding: 1rem;">
+                    <h3 class="section-title" style="margin-bottom:0.5rem; border:none;"><i class="fa-solid fa-terminal"></i> Custom Command</h3>
+                    <div class="control-row" style="margin:0;">
+                         <input type="text" id="manualInput" placeholder="Bypass buttons (e.g. +help)" style="flex-grow:1; padding:0.8rem; background:rgba(0,0,0,0.3); border-radius:8px; border:1px solid #333; color:white; outline:none;">
+                         <button class="btn btn-primary" style="width:auto; padding:0.8rem 1.5rem;" onclick="sendManual()"><i class="fa-solid fa-angle-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Downloads List -->
+                <div class="glass panel">
+                    <h3 class="section-title"><i class="fa-solid fa-folder-open"></i> File Manager</h3>
+                    <div class="download-item" id="uploadedFileItem" style="display: none; border-left: 3px solid #facc15;">
+                        <div class="dl-info">
+                            <span class="dl-name" id="upFileName">Local_File.mp3</span>
+                            <span class="dl-meta">Prepared for Context Menu...</span>
+                        </div>
+                        <button class="dl-btn" style="color: #facc15; border-color: #facc15;" onclick="playUploaded()"><i class="fa-solid fa-play"></i></button>
+                    </div>
+                    <div class="download-item">
+                        <div class="dl-info"><span class="dl-name">Mix_Tracker_01.mp3</span><span class="dl-meta">14 MB • Finished</span></div>
+                        <button class="dl-btn"><i class="fa-solid fa-download"></i></button>
+                    </div>
+                    <div class="download-item">
+                        <div class="dl-info"><span class="dl-name">Bot_Capture.wav</span><span class="dl-meta">8 MB • Finished</span></div>
+                        <button class="dl-btn"><i class="fa-solid fa-download"></i></button>
+                    </div>
+                </div>
+
+                <!-- GitHub Actions Server Console -->
+                <div class="glass panel" style="border-color: rgba(244, 114, 182, 0.4); box-shadow: 0 0 15px rgba(244, 114, 182, 0.1);">
+                    <h3 class="section-title" style="color: #f472b6; border-color: rgba(244, 114, 182, 0.2);"><i class="fa-brands fa-github"></i> Workflow Console</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">Execute commands directly on the GitHub Actions host runner (bypasses bot logic).</p>
+                    
+                    <div class="control-row" style="margin:0; margin-bottom: 1rem;">
+                         <input type="text" id="ghConsoleInput" placeholder="bash command (e.g. ls -la)" style="flex-grow:1; padding:0.8rem; background:rgba(0,0,0,0.5); border-radius:8px; border:1px solid #f472b6; color:white; outline:none; font-family: monospace;">
+                         <button class="btn" style="width:auto; padding:0.8rem 1.2rem; background: #db2777; color: white;" onclick="sendGHCommand()"><i class="fa-solid fa-play"></i> Run</button>
+                    </div>
+                    
+                    <div class="terminal" id="ghLog" style="height: 150px; border-color: #db2777; background: #11060e;">
+                        <p style="color: #f472b6;">[GH Host] Connected to runner environment.</p>
+                    </div>
+                </div>
+
+                <!-- Activity Log -->
+                <div class="glass panel" style="padding: 1rem;">
+                    <h3 class="section-title" style="margin-bottom:0.5rem;"><i class="fa-solid fa-bolt"></i> App Activity Log</h3>
+                    <div class="terminal" id="termLog">
+                        <p>System Initialized.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let currentUploadedFile = "";
+        let sysAuth = false;
+
+        // --- Core Polling --- //
+        async function pollStatus() {
+            if(!sysAuth) return;
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                
+                if(data.needs_token) {
+                    document.getElementById('tokenOverlay').style.display = 'flex';
+                    document.getElementById('connStatus').innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Token Error';
+                    document.getElementById('connStatus').style.color = '#ef4444';
+                    document.getElementById('connStatus').style.background = 'rgba(239, 68, 68, 0.1)';
+                } else if(data.logged_in) {
+                    document.getElementById('tokenOverlay').style.display = 'none';
+                    document.getElementById('connStatus').innerHTML = '<i class="fa-solid fa-circle-check"></i> System Online';
+                    document.getElementById('connStatus').style.color = '#4ade80';
+                    document.getElementById('connStatus').style.background = 'rgba(34, 197, 94, 0.1)';
+                    
+                    document.getElementById('botDisplayName').innerText = data.bot_display;
+                    document.getElementById('botUsername').innerText = data.bot_username;
+                }
+            } catch(e) {
+                console.log("Polling fail", e);
+            }
+        }
+        setInterval(pollStatus, 3000);
+
+        async function submitToken() {
+            const token = document.getElementById('discordTokenInput').value;
+            if(!token.trim()) return;
+            
+            document.getElementById('tokenErrorTxt').innerText = "Testing new token...";
+            document.getElementById('tokenErrorTxt').style.color = '#facc15';
+            
+            try {
+                const res = await fetch('/api/set_token', {
+                    method: 'POST', body: JSON.stringify({token: token.trim()})
+                });
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('discordTokenInput').value = '';
+                    setTimeout(pollStatus, 2000);
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        // Login
+        async function login() {
+            const key = document.getElementById('secretKey').value;
+            if(key.trim().length > 0) {
+                const res = await fetch('/api/auth', {
+                    method: 'POST', body: JSON.stringify({key: key})
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    sysAuth = true;
+                    document.getElementById('loginOverlay').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('loginOverlay').style.display = 'none';
+                        document.getElementById('mainApp').style.display = 'block';
+                        logA(`Authenticated securely. Connected to Bot Backend.`, 'sys');
+                        pollStatus();
+                    }, 500);
+                } else {
+                    alert("Authentication Failed: " + data.error);
+                }
+            }
+        }
+        document.getElementById('secretKey').addEventListener('keypress', e => { if (e.key === 'Enter') login(); });
+
+        // Command Runner Tool
+        async function runCmd(cmdStr) {
+            logA(`${cmdStr}`, 'cmd');
+            try {
+                const res = await fetch('/api/command', {
+                    method: 'POST', body: JSON.stringify({cmd: cmdStr.trim()})
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    logA(`Error executing: ${data.error}`, 'err');
+                }
+            } catch(e) {
+                logA("Network format error executing command.", "err");
+            }
+        }
+
+        // --- Prompt Based Commands --- //
+        // 0. Join User VC
+        function promptJoinVC() {
+            let user = prompt("Join User's VC: Enter the target Username or User ID:");
+            if (user && user.trim() !== '') {
+                // In phase 2, we will send this ID to the bot, which will look up the user and join their channel
+                runCmd(`+join_target ${user.trim()}`);
+            }
+        }
+
+        // 1. Follow User
+        function promptFollow() {
+            let user = prompt("Follow Mode: Enter Username or User ID to follow:");
+            if (user && user.trim() !== '') {
+                runCmd(`+follow ${user.trim()}`);
+                document.getElementById('followBadge').style.display = 'flex';
+                document.getElementById('followName').innerText = user.trim();
+            }
+        }
+        
+        // 2. Join ID
+        function promptJoinID() {
+            let cid = prompt("Enter Channel ID to Join:");
+            if (cid && cid.trim() !== '') runCmd(`+joinid ${cid.trim()}`);
+        }
+
+        // 3. Trim
+        function promptTrim() {
+            let params = prompt("Enter trim args in format: <start_sec> <end_sec> [URL]\nExample: 10 30 http://video.com/file");
+            if (params) runCmd(`+trim ${params}`);
+        }
+
+        // 4. Upload Compress
+        function promptUploadQuality() {
+            let params = prompt("Enter Upload Compression Args: [URL] [Quality(e.g 480p)]");
+            if (params) runCmd(`+upload ${params}`);
+        }
+
+        // 5. Screenshot
+        function promptSS() {
+            let params = prompt("Enter SS Args: [URL] [WaitTime]");
+            if (params) runCmd(`+ss ${params}`);
+        }
+
+        // 6. Volume
+        function promptVol() {
+            let vol = prompt("Enter Volume (0-500):");
+            if (vol && !isNaN(vol)) runCmd(`+vol ${vol}`);
+        }
+
+        // --- Media Area --- //
+        function playMediaInput() {
+            const txt = document.getElementById('playInput').value;
+            if (txt) {
+                runCmd(`+play ${txt}`);
+                document.getElementById('nowPlayingText').innerHTML = `🎶 Requesting: <span style="color:var(--success)">${txt}</span>`;
+                document.getElementById('playInput').value = '';
+            } else { alert("Enter URL or Song!"); }
+        }
+
+        function uploadAndPlay(input) {
+            if (input.files && input.files[0]) {
+                const f = input.files[0];
+                currentUploadedFile = f.name;
+                
+                document.getElementById('uploadedFileItem').style.display = 'flex';
+                document.getElementById('upFileName').innerText = currentUploadedFile;
+                
+                logA(`[UI Local] File staged: ${f.name}`);
+                runCmd(`+play ${f.name} (Local Upload Event)`);
+                document.getElementById('nowPlayingText').innerHTML = `🎶 Loading Upload: <span style="color:var(--warning)">${f.name}</span>`;
+            }
+        }
+        function playUploaded() {
+            if (currentUploadedFile) {
+                runCmd(`+play ${currentUploadedFile} (Local)`);
+                document.getElementById('nowPlayingText').innerHTML = `🎶 Playing Upload: <span style="color:var(--warning)">${currentUploadedFile}</span>`;
+            }
+        }
+
+        function sendTTS() {
+            const text = document.getElementById('ttsInput').value;
+            if(!text) return;
+            
+            const voice = document.getElementById('ttsVoice').value;
+            if (voice) runCmd(`+settingtts ${voice}`);
+            
+            runCmd(`+tts ${text}`);
+            document.getElementById('ttsInput').value = '';
+        }
+
+        // Manual Command
+        function sendManual() {
+            const t = document.getElementById('manualInput').value;
+            if(t) { runCmd(t); document.getElementById('manualInput').value = ''; }
+        }
+        document.getElementById('manualInput').addEventListener('keypress', e => { if (e.key === 'Enter') sendManual(); });
+
+        // GitHub Console Logic
+        async function sendGHCommand() {
+            const cmd = document.getElementById('ghConsoleInput').value;
+            if (cmd) {
+                logGH(cmd, 'user');
+                document.getElementById('ghConsoleInput').value = '';
+                try {
+                    const res = await fetch('/api/gh_command', {
+                        method: 'POST', body: JSON.stringify({cmd: cmd})
+                    });
+                    const data = await res.json();
+                    if(data.success) {
+                        logGH(data.output, 'sys');
+                    } else {
+                        logGH("Execution Error: " + data.error, 'sys');
+                    }
+                } catch(e) {
+                    logGH("Network Error", "sys");
+                }
+            }
+        }
+        document.getElementById('ghConsoleInput').addEventListener('keypress', e => { if (e.key === 'Enter') sendGHCommand(); });
+
+        function logGH(msg, type='sys') {
+            const term = document.getElementById('ghLog');
+            let htmlStr = type === 'user' ? `<p style="color: white;">> ${msg}</p>` : `<p style="color: #f472b6;">${msg}</p>`;
+            term.innerHTML += htmlStr;
+            term.scrollTop = term.scrollHeight;
+        }
+
+        // Logger function
+        function logA(msg, type='sys') {
+            const term = document.getElementById('termLog');
+            const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            
+            let htmlStr = '';
+            if (type === 'cmd') htmlStr = `<p class="log-cmd">[${now}] $ <b>${msg}</b></p>`;
+            else if (type === 'user') htmlStr = `<p class="log-user">[${now}] ➔ ${msg}</p>`;
+            else if (type === 'err') htmlStr = `<p class="log-error">[${now}] ❗ ${msg}</p>`;
+            else htmlStr = `<p style="color:#abaaaa">[${now}] ${msg}</p>`;
+            
+            term.innerHTML += htmlStr;
+            term.scrollTop = term.scrollHeight;
+        }
+
+    </script>
+</body>
+</html>

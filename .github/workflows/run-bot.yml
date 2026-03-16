@@ -27,7 +27,8 @@ jobs:
 
     - name: Run Bot
       env:
+        PYTHONUNBUFFERED: "1"
         DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-        KEY: ${{ secrets.KEY }}  # <--- THIS WAS MISSING!
+        KEY: ${{ secrets.KEY }}
       run: |
-        python bot.py
+        python -u bot.py

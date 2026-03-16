@@ -1399,10 +1399,12 @@ async def run_cloudflare_tunnel(port):
             if "trycloudflare.com" in decoded:
                 for part in decoded.split():
                     if "trycloudflare.com" in part:
+                        import sys
                         CLOUDFLARE_URL = part.strip()
                         print(f"\n=====================================")
                         print(f"🌍 WEB UI LINK: {CLOUDFLARE_URL}")
                         print(f"=====================================")
+                        sys.stdout.flush()
 
     asyncio.create_task(read_cf_stderr())
 

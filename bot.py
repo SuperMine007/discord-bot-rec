@@ -1352,7 +1352,7 @@ async def download_cloudflared():
         print(f"Unsupported OS for auto Cloudflare: {system}")
         return None
 
-    if not os.path.exists(cf_bin) and not shutil.which("cloudflared"):
+    if not os.path.exists(cf_bin) or (os.path.exists(cf_bin) and os.path.getsize(cf_bin) < 1000):
         print(f"Downloading Cloudflared from {url}...")
         try:
             async with aiohttp.ClientSession() as session:
@@ -1362,13 +1362,20 @@ async def download_cloudflared():
                             f.write(await resp.read())
                         if system == "linux":
                             os.chmod(cf_bin, 0o755)
-                        print("✅ Cloudflared Downlaoded!")
-                        return f"./{cf_bin}" if system == "linux" else cf_bin
+                        print("✅ Cloudflared Downloaded!")
+                    else:
+                        print(f"HTTP Error: {resp.status}")
         except Exception as e:
-            print(f"❌ Failed to download Cloudflared: {e}")
-            return None
-    elif os.path.exists(cf_bin):
-        return f"./{cf_bin}" if system == "linux" else cf_bin
+            print(f"❌ Failed to download Cloudflared via aiohttp: {e}")
+            if system == "linux":
+                print("Trying wget fallback...")
+                os.system(f"wget -qO {cf_bin} {url} && chmod +x {cf_bin}")
+                
+    if os.path.exists(cf_bin):
+        if system == "linux":
+            os.chmod(cf_bin, 0o755)
+            return f"./{cf_bin}"
+        return cf_bin
     else:
         return "cloudflared"
 

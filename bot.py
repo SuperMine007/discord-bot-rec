@@ -928,9 +928,6 @@ def play_audio_core(ctx, url, title):
     
     try:
         # Use our Custom Recordable Audio Class instead of the standard one
-        if not vc.is_connected():
-            print(f"Play Core Error: Voice client exists but is not connected.")
-            return
         source = RecordableFFmpegPCMAudio(url, **opts)
         vc.play(source, after=on_finish)
     except Exception as e:
@@ -1422,7 +1419,7 @@ async def api_status(request):
     vc_name = "None"
     if hasattr(bot, 'voice_clients') and len(bot.voice_clients) > 0:
         vc = bot.voice_clients[0]
-        if hasattr(vc, 'channel') and hasattr(vc.channel, 'name') and vc.is_connected():
+        if hasattr(vc, 'channel') and vc.channel and hasattr(vc.channel, 'name'):
             vc_name = vc.channel.name
             
     global FOLLOW_MODE, AUTHORIZED_USERS
@@ -1551,16 +1548,10 @@ async def api_command(request):
                     return web.json_response({"success": False, "error": "Not a voice channel."})
                 
                 vc = await channel.connect(timeout=10)
-                # Wait for voice to be truly ready
-                for _ in range(20):
-                    if vc.is_connected(): break
-                    await asyncio.sleep(0.25)
-                
-                if vc.is_connected():
-                    print(f"✅ Joined VC: {channel.name}")
-                    return web.json_response({"success": True})
-                else:
-                    return web.json_response({"success": False, "error": "Connected but voice not ready."})
+                # Give voice gateway a moment to settle
+                await asyncio.sleep(1)
+                print(f"✅ Joined VC: {channel.name}")
+                return web.json_response({"success": True})
             except Exception as e:
                 print(f"Join Error: {e}")
                 return web.json_response({"success": False, "error": str(e)})
@@ -1589,10 +1580,7 @@ async def api_command(request):
                                 await asyncio.sleep(0.5)
                             
                             vc = await v.connect(timeout=10)
-                            for _ in range(20):
-                                if vc.is_connected(): break
-                                await asyncio.sleep(0.25)
-                            
+                            await asyncio.sleep(1)
                             found = True
                             print(f"✅ Joined VC: {v.name} (following {m.display_name})")
                             return web.json_response({"success": True})
@@ -1602,7 +1590,7 @@ async def api_command(request):
         # --- DIRECT TTS ---
         elif base == 'tts' and len(parts) > 1:
             tts_text = " ".join(parts[1:])
-            if len(bot.voice_clients) == 0 or not bot.voice_clients[0].is_connected():
+            if len(bot.voice_clients) == 0:
                 return web.json_response({"success": False, "error": "Not connected to a Voice Channel. Join first!"})
             
             try:

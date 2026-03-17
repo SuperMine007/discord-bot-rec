@@ -379,6 +379,8 @@ CURRENT_RECORDING_CONFIG = {"merge": False, "bot_audio": False}
 VOLUME_LEVEL = 1.0 
 BASS_ACTIVE = False
 FOLLOW_MODE = False
+GLOBAL_MUTE = False
+GLOBAL_DEAF = False
 
 # TTS SETTINGS (FIXED ARAB VOICES)
 TTS_VOICE = "en-IN-NeerjaNeural" # Default
@@ -1417,7 +1419,7 @@ async def api_status(request):
     vc_name = "None"
     if hasattr(bot, 'voice_clients') and len(bot.voice_clients) > 0:
         vc = bot.voice_clients[0]
-        if vc.is_connected() and hasattr(vc.channel, 'name'):
+        if hasattr(vc, 'channel') and hasattr(vc.channel, 'name'):
             vc_name = vc.channel.name
             
     global FOLLOW_MODE, AUTHORIZED_USERS
@@ -1431,7 +1433,9 @@ async def api_status(request):
         "bot_display": safe_display,
         "bot_username": username,
         "vc_name": vc_name,
-        "follow_name": follow_name
+        "follow_name": follow_name,
+        "global_mute": GLOBAL_MUTE,
+        "global_deaf": GLOBAL_DEAF
     })
 
 async def api_auth(request):
@@ -1495,14 +1499,42 @@ async def api_command(request):
         parts = cmd_str.split(' ')
         base = parts[0].replace('+', '')
         
+        # --- DIRECT LOGIC OVERRIDES ---
+        if base == 'dc':
+            if len(bot.voice_clients) > 0:
+                await bot.voice_clients[0].disconnect()
+            return web.json_response({"success": True})
+            
+        elif base == 'm':
+            global GLOBAL_MUTE, GLOBAL_DEAF
+            if len(bot.voice_clients) > 0:
+                vc = bot.voice_clients[0]
+                GLOBAL_MUTE = not GLOBAL_MUTE
+                payload = {"op": 4, "d": {"guild_id": vc.channel.guild.id, "channel_id": vc.channel.id, "self_mute": GLOBAL_MUTE, "self_deaf": GLOBAL_DEAF}}
+                await bot.ws.send_as_json(payload)
+                return web.json_response({"success": True})
+            return web.json_response({"success": False, "error": "Not in VC"})
+            
+        elif base == 'deaf':
+            # Global variables are already specified above but declaring them again won't hurt
+            if len(bot.voice_clients) > 0:
+                vc = bot.voice_clients[0]
+                GLOBAL_DEAF = not GLOBAL_DEAF
+                payload = {"op": 4, "d": {"guild_id": vc.channel.guild.id, "channel_id": vc.channel.id, "self_mute": GLOBAL_MUTE, "self_deaf": GLOBAL_DEAF}}
+                await bot.ws.send_as_json(payload)
+                return web.json_response({"success": True})
+            return web.json_response({"success": False, "error": "Not in VC"})
+        
         ctx = DummyContext()
         
         # Execute basic mapping
         cmd = bot.get_command(base)
         if cmd:
             args = parts[1:]
-            if base in ['play', 'tts']:
-                 await ctx.invoke(cmd, query=" ".join(args) if base == 'play' else "", text=" ".join(args) if base == 'tts' else "")
+            if base == 'play':
+                 await ctx.invoke(cmd, query=" ".join(args))
+            elif base == 'tts':
+                 await ctx.invoke(cmd, text=" ".join(args))
             elif base in ['trim'] and len(args)>=2:
                  url = " ".join(args[2:]) if len(args)>2 else None
                  await ctx.invoke(cmd, start_time=args[0], end_time=args[1], url=url)

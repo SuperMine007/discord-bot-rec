@@ -245,8 +245,8 @@
                         <button class="action-btn btn-pur" onclick="promptJoinID()"><i class="fa-solid fa-hashtag"></i><span>Join ID</span></button>
                         <button class="action-btn btn-ylw" onclick="runCmd('+autorec on merged')"><i class="fa-solid fa-rotate"></i><span>AutoRec</span></button>
                         <button class="action-btn btn-grn" onclick="promptFollow()"><i class="fa-solid fa-paw"></i><span>Follow</span></button>
-                        <button class="action-btn btn-ylw" onclick="runCmd('+m')"><i class="fa-solid fa-microphone-slash"></i><span>Mute</span></button>
-                        <button class="action-btn btn-ylw" onclick="runCmd('+deaf')"><i class="fa-solid fa-headphones"></i><span>Deafen</span></button>
+                        <button id="btnMute" class="action-btn btn-ylw" onclick="runCmd('+m')"><i class="fa-solid fa-microphone"></i><span>Mute</span></button>
+                        <button id="btnDeaf" class="action-btn btn-ylw" onclick="runCmd('+deaf')"><i class="fa-solid fa-headphones"></i><span>Deafen</span></button>
                     </div>
 
                     <div class="action-grid" style="grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));">
@@ -407,6 +407,29 @@
                         document.getElementById('followName').innerText = data.follow_name;
                     } else {
                         document.getElementById('followBadge').style.display = 'none';
+                    }
+                    
+                    // Sync Mute/Deaf Buttons
+                    const btnMute = document.getElementById('btnMute');
+                    if (data.global_mute) {
+                        btnMute.innerHTML = '<i class="fa-solid fa-microphone-slash"></i><span>Unmute</span>';
+                        btnMute.style.background = 'rgba(239, 68, 68, 0.2)';
+                        btnMute.style.borderColor = '#ef4444';
+                    } else {
+                        btnMute.innerHTML = '<i class="fa-solid fa-microphone"></i><span>Mute</span>';
+                        btnMute.style.background = 'rgba(20, 30, 48, 0.7)';
+                        btnMute.style.borderColor = 'var(--glass-border)';
+                    }
+                    
+                    const btnDeaf = document.getElementById('btnDeaf');
+                    if (data.global_deaf) {
+                        btnDeaf.innerHTML = '<i class="fa-solid fa-volume-xmark"></i><span>Undeaf</span>';
+                        btnDeaf.style.background = 'rgba(239, 68, 68, 0.2)';
+                        btnDeaf.style.borderColor = '#ef4444';
+                    } else {
+                        btnDeaf.innerHTML = '<i class="fa-solid fa-headphones"></i><span>Deafen</span>';
+                        btnDeaf.style.background = 'rgba(20, 30, 48, 0.7)';
+                        btnDeaf.style.borderColor = 'var(--glass-border)';
                     }
                 }
             } catch(e) {

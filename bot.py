@@ -134,6 +134,31 @@ discord.http.HTTPClient.static_login = patched_login
 discord.http.HTTPClient.request = patched_request
 discord.abc.Messageable.send = direct_send
 
+# 5. Voice Client Patch: Prevent poll_voice_ws crash from auto-disconnecting
+#    In self_bot mode, vc.ws is '_MissingSentinel' so poll_voice_ws crashes.
+#    The crash triggers py-cord's internal cleanup which disconnects the VC.
+#    This patch catches the crash and sleeps silently instead.
+_original_poll_voice_ws = discord.VoiceClient.poll_voice_ws
+
+async def _safe_poll_voice_ws(self, reconnect=True):
+    """Self-bot safe voice WS poller - prevents disconnect on missing WS"""
+    while True:
+        try:
+            if not hasattr(self.ws, 'poll_event'):
+                # WS is _MissingSentinel - just sleep, don't crash
+                await asyncio.sleep(30)
+                continue
+            await self.ws.poll_event()
+        except AttributeError:
+            # _MissingSentinel has no poll_event
+            await asyncio.sleep(30)
+        except Exception as exc:
+            if not reconnect:
+                raise
+            await asyncio.sleep(5)
+
+discord.VoiceClient.poll_voice_ws = _safe_poll_voice_ws
+
 # ==========================================
 # 🎵 CUSTOM AUDIO ENGINE (ANTI-STUTTER + SYNC)
 # ==========================================

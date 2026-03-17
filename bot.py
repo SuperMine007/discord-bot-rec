@@ -928,6 +928,9 @@ def play_audio_core(ctx, url, title):
     
     try:
         # Use our Custom Recordable Audio Class instead of the standard one
+        if not vc.is_connected():
+            print(f"Play Core Error: Voice client exists but is not connected.")
+            return
         source = RecordableFFmpegPCMAudio(url, **opts)
         vc.play(source, after=on_finish)
     except Exception as e:
@@ -1532,17 +1535,115 @@ async def api_command(request):
                     print(f"Deaf Error: {e}")
                 return web.json_response({"success": True})
             return web.json_response({"success": False, "error": "Not in VC"})
+
+        # --- DIRECT JOIN BY CHANNEL ID ---
+        elif base == 'joinid' and len(parts) > 1:
+            channel_id = parts[1]
+            try:
+                # Force disconnect any existing voice client
+                if len(bot.voice_clients) > 0:
+                    try: await bot.voice_clients[0].disconnect(force=True)
+                    except: pass
+                    await asyncio.sleep(0.5)
+                
+                channel = bot.get_channel(int(channel_id))
+                if not isinstance(channel, discord.VoiceChannel):
+                    return web.json_response({"success": False, "error": "Not a voice channel."})
+                
+                vc = await channel.connect(timeout=10)
+                # Wait for voice to be truly ready
+                for _ in range(20):
+                    if vc.is_connected(): break
+                    await asyncio.sleep(0.25)
+                
+                if vc.is_connected():
+                    print(f"✅ Joined VC: {channel.name}")
+                    return web.json_response({"success": True})
+                else:
+                    return web.json_response({"success": False, "error": "Connected but voice not ready."})
+            except Exception as e:
+                print(f"Join Error: {e}")
+                return web.json_response({"success": False, "error": str(e)})
+
+        # --- DIRECT JOIN BY USER NAME/ID ---
+        elif base == 'join_target' and len(parts) > 1:
+            uid = parts[1]
+            
+            # Safety: reject channel IDs
+            if uid.isdigit():
+                try:
+                    check_vc = bot.get_channel(int(uid))
+                    if isinstance(check_vc, discord.VoiceChannel):
+                        return web.json_response({"success": False, "error": "That's a Channel ID! Use 'Join ID' instead."})
+                except: pass
+
+            found = False
+            for g in bot.guilds:
+                for v in g.voice_channels:
+                    for m in v.members:
+                        if uid.lower() in m.name.lower() or uid.lower() in m.display_name.lower() or str(m.id) == uid:
+                            # Force disconnect first
+                            if len(bot.voice_clients) > 0:
+                                try: await bot.voice_clients[0].disconnect(force=True)
+                                except: pass
+                                await asyncio.sleep(0.5)
+                            
+                            vc = await v.connect(timeout=10)
+                            for _ in range(20):
+                                if vc.is_connected(): break
+                                await asyncio.sleep(0.25)
+                            
+                            found = True
+                            print(f"✅ Joined VC: {v.name} (following {m.display_name})")
+                            return web.json_response({"success": True})
+            if not found:
+                return web.json_response({"success": False, "error": f"Could not find user '{uid}' in any Voice Channel!"})
+
+        # --- DIRECT TTS ---
+        elif base == 'tts' and len(parts) > 1:
+            tts_text = " ".join(parts[1:])
+            if len(bot.voice_clients) == 0 or not bot.voice_clients[0].is_connected():
+                return web.json_response({"success": False, "error": "Not connected to a Voice Channel. Join first!"})
+            
+            try:
+                output_file = f"tts_{int(time.time())}.mp3"
+                communicate = edge_tts.Communicate(tts_text, TTS_VOICE)
+                await communicate.save(output_file)
+                
+                vc = bot.voice_clients[0]
+                if vc.is_playing():
+                    q_id = bot.guilds[0].id if bot.guilds else 0
+                    if q_id not in queues: queues[q_id] = []
+                    queues[q_id].append({'url': output_file, 'title': f"🗣️ {tts_text[:20]}..."})
+                else:
+                    play_audio_core(None, output_file, f"🗣️ {tts_text}")
+                    
+                return web.json_response({"success": True})
+            except Exception as e:
+                print(f"TTS Direct Error: {e}")
+                return web.json_response({"success": False, "error": str(e)})
         
+        # --- FOLLOW (direct) ---
+        elif base == 'follow' and len(parts) > 1:
+            uid = parts[1]
+            global AUTHORIZED_USERS
+            for g in bot.guilds:
+                for m in g.members:
+                    if uid.lower() in m.name.lower() or uid.lower() in m.display_name.lower() or str(m.id) == uid:
+                        AUTHORIZED_USERS.add(m.id)
+            ctx = DummyContext()
+            cmd = bot.get_command('follow')
+            if cmd:
+                await ctx.invoke(cmd)
+            return web.json_response({"success": True})
+        
+        # --- EVERYTHING ELSE through DummyContext ---
         ctx = DummyContext()
-        
-        # Execute basic mapping
         cmd = bot.get_command(base)
         if cmd:
             args = parts[1:]
             if base == 'play':
                  await ctx.invoke(cmd, query=" ".join(args))
-            elif base == 'tts':
-                 await ctx.invoke(cmd, text=" ".join(args))
             elif base in ['trim'] and len(args)>=2:
                  url = " ".join(args[2:]) if len(args)>2 else None
                  await ctx.invoke(cmd, start_time=args[0], end_time=args[1], url=url)
@@ -1551,51 +1652,13 @@ async def api_command(request):
                  await ctx.invoke(cmd, url=args[0], quality=q)
             elif base in ['vol'] and len(args)>0:
                  await ctx.invoke(cmd, volume=int(args[0]))
-            elif base in ['joinid'] and len(args)>0:
-                 if len(bot.voice_clients) > 0:
-                      try: await bot.voice_clients[0].disconnect(force=True)
-                      except: pass
-                 await ctx.invoke(cmd, channel_id=args[0])
-            elif base == 'join_target' and len(args)>0:
-                 # Custom logic for joining specific user from UI
-                 uid = args[0]
-                 
-                 # Safety Validation: User provided a Channel ID instead?
-                 if uid.isdigit():
-                     try:
-                         check_vc = bot.get_channel(int(uid))
-                         if isinstance(check_vc, discord.VoiceChannel):
-                             return web.json_response({"success": False, "error": "Warning: You entered a Channel ID! Please use 'Join ID' instead, or provide a User ID/Name here."})
-                     except: pass
-
-                 found = False
-                 for g in bot.guilds:
-                     for v in g.voice_channels:
-                         for m in v.members:
-                             if uid.lower() in m.name.lower() or uid.lower() in m.display_name.lower() or str(m.id) == uid:
-                                 if len(bot.voice_clients) > 0:
-                                      try: await bot.voice_clients[0].disconnect(force=True)
-                                      except: pass
-                                 await v.connect()
-                                 found = True
-                                 return web.json_response({"success": True})
-                 if not found:
-                     return web.json_response({"success": False, "error": f"Could not find user '{uid}' in any Voice Channel!"})
-            elif base == 'follow' and len(args)>0:
-                 uid = args[0]
-                 global AUTHORIZED_USERS
-                 # Mock auth for follow target
-                 for g in bot.guilds:
-                     for m in g.members:
-                         if uid in m.name or uid in m.display_name or str(m.id) == uid:
-                             AUTHORIZED_USERS.add(m.id)
-                 await ctx.invoke(cmd)
             else:
                  await ctx.invoke(cmd)
-                 
+                  
         return web.json_response({"success": True})
         
     except Exception as e:
+        print(f"API Command Error: {e}")
         return web.json_response({"success": False, "error": str(e)})
 
 async def api_gh_command(request):

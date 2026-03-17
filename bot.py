@@ -552,7 +552,10 @@ async def finished_callback(sink, dest_channel, *args):
     else:
         total_duration = 10 
         
-    await dest_channel.send(f"✅ **Recording finished.** Duration: {int(total_duration)}s. Processing...")
+    try:
+        await dest_channel.send(f"✅ **Recording finished.** Duration: {int(total_duration)}s. Processing...")
+    except Exception as e:
+        print(f"Recording callback send error (non-critical): {e}")
     
     temp_wavs = [] 
     real_names = [] 
@@ -993,8 +996,9 @@ async def dc(ctx):
 queues = {}
 
 def get_queue_id(ctx):
-    if ctx.guild: return ctx.guild.id
-    return ctx.author.id
+    if ctx.guild and hasattr(ctx.guild, 'id'): return ctx.guild.id
+    if hasattr(ctx, 'author') and hasattr(ctx.author, 'id'): return ctx.author.id
+    return 0  # Fallback for DummyContext with no guild
 
 def play_next_in_queue(ctx):
     q_id = get_queue_id(ctx)
@@ -1582,7 +1586,9 @@ async def api_set_token(request):
 class DummyContext:
     def __init__(self):
         self.message = type('obj', (object,), {'attachments': [], 'reference': None})()
-        self.channel = type('obj', (object,), {'id': 0, 'fetch_message': lambda x: None})()
+        # Channel needs async send method for callbacks
+        async def _dummy_send(*args, **kwargs): pass
+        self.channel = type('obj', (object,), {'id': 0, 'fetch_message': lambda x: None, 'send': _dummy_send})()
         if hasattr(bot, 'guilds') and len(bot.guilds)>0:
             self.guild = bot.guilds[0]
             if len(self.guild.members) > 0:

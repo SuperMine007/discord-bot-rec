@@ -20,10 +20,9 @@ import edge_tts
 import random 
 import logging
 
-# Enable verbose discord voice logging for debugging
+# Enable discord voice logging only (gateway is too verbose)
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger('discord.voice_client').setLevel(logging.DEBUG)
-logging.getLogger('discord.gateway').setLevel(logging.DEBUG)
 
 # ==========================================
 # ☢️ THE "NUCLEAR" PATCH v96 (+Trim Feature Added)

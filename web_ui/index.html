@@ -249,9 +249,9 @@
                     </div>
 
                     <div class="action-grid" style="grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));">
-                        <button class="action-btn" style="border-color: #f472b6;" onclick="runCmd('+record')"><i class="fa-solid fa-file-audio" style="color: #f472b6;"></i><span>Record (Separate)</span></button>
-                        <button class="action-btn" style="border-color: #ef4444;" onclick="runCmd('+recordall')"><i class="fa-solid fa-compact-disc" style="color: #ef4444;"></i><span>Record (Merged)</span></button>
-                        <button class="action-btn" style="border-color: #8b5cf6; background: rgba(139, 92, 246, 0.1);" onclick="runCmd('+recordme')"><i class="fa-solid fa-sliders" style="color: #8b5cf6;"></i><span>STUDIO MODE</span></button>
+                        <button class="action-btn" onclick="runCmd('+record')"><i class="fa-solid fa-file-audio" style="color: #f472b6;"></i><span>Record (Separate)</span></button>
+                        <button class="action-btn" onclick="runCmd('+recordall')"><i class="fa-solid fa-compact-disc" style="color: #ef4444;"></i><span>Record (Merged)</span></button>
+                        <button class="action-btn" onclick="runCmd('+recordme')"><i class="fa-solid fa-sliders" style="color: #8b5cf6;"></i><span>STUDIO MODE</span></button>
                     </div>
                     
                     <div class="action-grid" style="grid-template-columns: repeat(2, 1fr);">
@@ -337,13 +337,8 @@
                         </div>
                         <button class="dl-btn" style="color: #facc15; border-color: #facc15;" onclick="playUploaded()"><i class="fa-solid fa-play"></i></button>
                     </div>
-                    <div class="download-item">
-                        <div class="dl-info"><span class="dl-name">Mix_Tracker_01.mp3</span><span class="dl-meta">14 MB • Finished</span></div>
-                        <button class="dl-btn"><i class="fa-solid fa-download"></i></button>
-                    </div>
-                    <div class="download-item">
-                        <div class="dl-info"><span class="dl-name">Bot_Capture.wav</span><span class="dl-meta">8 MB • Finished</span></div>
-                        <button class="dl-btn"><i class="fa-solid fa-download"></i></button>
+                    <div id="fileManagerList" style="text-align: center; color: var(--text-muted); padding: 1rem; font-size: 0.9rem;">
+                        No recordings yet.
                     </div>
                 </div>
 

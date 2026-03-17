@@ -1469,6 +1469,12 @@ class DummyContext:
               async def __aexit__(self,a,b,c): pass
          return TypingMgr()
 
+    async def invoke(self, command, *args, **kwargs):
+        try:
+            return await command.callback(self, *args, **kwargs)
+        except Exception as e:
+            print(f"DummyContext Invoke Error: {e}")
+
 async def api_command(request):
     try:
         data = await request.json()

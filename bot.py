@@ -33,6 +33,11 @@ async def patched_login(self, token):
     self.token = token.strip().strip('"')
     self._token_type = ""
     
+    # CRITICAL: Override the User-Agent so websocket connections (including voice)
+    # use a browser-like UA instead of 'DiscordBot (pycord ...)' which Discord
+    # rejects for user accounts on voice servers (close code 4017).
+    self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    
     if not hasattr(self, '_HTTPClient__session') or getattr(self, '_HTTPClient__session').__class__.__name__ == '_MissingSentinel':
         self._HTTPClient__session = aiohttp.ClientSession()
 
@@ -138,6 +143,26 @@ def fetch_real_name_sync(user_id, token):
 discord.http.HTTPClient.static_login = patched_login
 discord.http.HTTPClient.request = patched_request
 discord.abc.Messageable.send = direct_send
+
+# 5.5 Voice WS Patch: Override ws_connect to include Origin header like real clients
+#     Discord voice servers check Origin + User-Agent for user accounts.
+_original_ws_connect = discord.http.HTTPClient.ws_connect
+
+async def _patched_ws_connect(self, url, *, compress=0):
+    """Patched ws_connect with browser-like headers for voice gateway."""
+    kwargs = {
+        'max_msg_size': 0,
+        'timeout': 30.0,
+        'autoclose': False,
+        'headers': {
+            'User-Agent': self.user_agent,
+            'Origin': 'https://discord.com',
+        },
+        'compress': compress,
+    }
+    return await self._HTTPClient__session.ws_connect(url, **kwargs)
+
+discord.http.HTTPClient.ws_connect = _patched_ws_connect
 
 # 5. Voice Client Patch: Prevent poll_voice_ws crash from auto-disconnecting
 #    In self_bot mode, vc.ws is '_MissingSentinel' so poll_voice_ws crashes.

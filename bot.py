@@ -1419,7 +1419,7 @@ async def api_status(request):
     vc_name = "None"
     if hasattr(bot, 'voice_clients') and len(bot.voice_clients) > 0:
         vc = bot.voice_clients[0]
-        if hasattr(vc, 'channel') and hasattr(vc.channel, 'name'):
+        if hasattr(vc, 'channel') and hasattr(vc.channel, 'name') and vc.is_connected():
             vc_name = vc.channel.name
             
     global FOLLOW_MODE, AUTHORIZED_USERS
@@ -1502,7 +1502,12 @@ async def api_command(request):
         # --- DIRECT LOGIC OVERRIDES ---
         if base == 'dc':
             if len(bot.voice_clients) > 0:
-                await bot.voice_clients[0].disconnect()
+                vc = bot.voice_clients[0]
+                try:
+                    if vc.recording: vc.stop_recording()
+                    if vc.is_playing(): vc.stop()
+                except: pass
+                await vc.disconnect(force=True)
             return web.json_response({"success": True})
             
         elif base == 'm':
@@ -1510,18 +1515,21 @@ async def api_command(request):
             if len(bot.voice_clients) > 0:
                 vc = bot.voice_clients[0]
                 GLOBAL_MUTE = not GLOBAL_MUTE
-                payload = {"op": 4, "d": {"guild_id": vc.channel.guild.id, "channel_id": vc.channel.id, "self_mute": GLOBAL_MUTE, "self_deaf": GLOBAL_DEAF}}
-                await bot.ws.send_as_json(payload)
+                try:
+                    await vc.guild.me.edit(mute=GLOBAL_MUTE)
+                except Exception as e:
+                    print(f"Mute Error: {e}")
                 return web.json_response({"success": True})
             return web.json_response({"success": False, "error": "Not in VC"})
             
         elif base == 'deaf':
-            # Global variables are already specified above but declaring them again won't hurt
             if len(bot.voice_clients) > 0:
                 vc = bot.voice_clients[0]
                 GLOBAL_DEAF = not GLOBAL_DEAF
-                payload = {"op": 4, "d": {"guild_id": vc.channel.guild.id, "channel_id": vc.channel.id, "self_mute": GLOBAL_MUTE, "self_deaf": GLOBAL_DEAF}}
-                await bot.ws.send_as_json(payload)
+                try:
+                    await vc.guild.me.edit(deafen=GLOBAL_DEAF)
+                except Exception as e:
+                    print(f"Deaf Error: {e}")
                 return web.json_response({"success": True})
             return web.json_response({"success": False, "error": "Not in VC"})
         
@@ -1544,6 +1552,9 @@ async def api_command(request):
             elif base in ['vol'] and len(args)>0:
                  await ctx.invoke(cmd, volume=int(args[0]))
             elif base in ['joinid'] and len(args)>0:
+                 if len(bot.voice_clients) > 0:
+                      try: await bot.voice_clients[0].disconnect(force=True)
+                      except: pass
                  await ctx.invoke(cmd, channel_id=args[0])
             elif base == 'join_target' and len(args)>0:
                  # Custom logic for joining specific user from UI
@@ -1562,6 +1573,9 @@ async def api_command(request):
                      for v in g.voice_channels:
                          for m in v.members:
                              if uid.lower() in m.name.lower() or uid.lower() in m.display_name.lower() or str(m.id) == uid:
+                                 if len(bot.voice_clients) > 0:
+                                      try: await bot.voice_clients[0].disconnect(force=True)
+                                      except: pass
                                  await v.connect()
                                  found = True
                                  return web.json_response({"success": True})

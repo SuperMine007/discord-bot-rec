@@ -230,6 +230,24 @@
         </div>
     </div>
 
+    <!-- Custom Prompt Modal -->
+    <div id="customPromptOverlay" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; justify-content: center; align-items: center; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 2000;">
+        <div class="glass login-box" style="border: 1px solid var(--primary); width: 95%; max-width: 450px;">
+            <i class="fa-solid fa-keyboard" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 1rem;"></i>
+            <h2 id="customPromptTitle" style="color: white; font-size: 1.2rem; margin-bottom: 1rem;">Enter Value</h2>
+            <div class="input-group" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                <input type="text" id="customPromptInput" style="padding-left: 1rem;" placeholder="Type here..." autocomplete="off">
+                <button class="btn" style="width: auto; padding: 0 1rem; background: rgba(255,255,255,0.1);" onclick="pasteToPrompt()" title="Paste from Clipboard">
+                    <i class="fa-solid fa-paste"></i>
+                </button>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn" style="background: rgba(255,255,255,0.1);" onclick="closeCustomPrompt()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCustomPrompt()">Submit</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Dashboard -->
     <div id="mainApp">
         <header class="glass">
@@ -553,42 +571,84 @@
             }
         }
 
+        // --- Custom Prompt Logic ---
+        let currentPromptCallback = null;
+
+        function showCustomPrompt(title, placeholder, callback) {
+            document.getElementById('customPromptTitle').innerText = title;
+            document.getElementById('customPromptInput').placeholder = placeholder;
+            document.getElementById('customPromptInput').value = '';
+            currentPromptCallback = callback;
+            document.getElementById('customPromptOverlay').style.display = 'flex';
+            setTimeout(() => document.getElementById('customPromptInput').focus(), 100);
+        }
+
+        function closeCustomPrompt() {
+            document.getElementById('customPromptOverlay').style.display = 'none';
+            currentPromptCallback = null;
+        }
+
+        function submitCustomPrompt() {
+            if (currentPromptCallback) {
+                const val = document.getElementById('customPromptInput').value;
+                currentPromptCallback(val);
+            }
+            closeCustomPrompt();
+        }
+
+        async function pasteToPrompt() {
+            try {
+                const text = await navigator.clipboard.readText();
+                document.getElementById('customPromptInput').value = text;
+            } catch (err) {
+                alert('Failed to read clipboard! Please ensure you have granted clipboard permissions.');
+            }
+        }
+        
+        document.getElementById('customPromptInput').addEventListener('keypress', e => {
+            if (e.key === 'Enter') submitCustomPrompt();
+        });
+
         // 1. Follow User
         function promptFollow() {
-            let user = prompt("Follow Mode: Enter Username or User ID to follow:");
-            if (user && user.trim() !== '') {
-                runCmd(`+follow ${user.trim()}`);
-            }
+            showCustomPrompt("Follow User", "Enter Username or User ID", (user) => {
+                if (user && user.trim() !== '') runCmd(`+follow ${user.trim()}`);
+            });
         }
         
         // 2. Join ID
         function promptJoinID() {
-            let cid = prompt("Enter Channel ID to Join:");
-            if (cid && cid.trim() !== '') runCmd(`+joinid ${cid.trim()}`);
+            showCustomPrompt("Join Channel", "Enter Channel ID to Join", (cid) => {
+                if (cid && cid.trim() !== '') runCmd(`+joinid ${cid.trim()}`);
+            });
         }
 
         // 3. Trim
         function promptTrim() {
-            let params = prompt("Enter trim args in format: <start_sec> <end_sec> [URL]\nExample: 10 30 http://video.com/file");
-            if (params) runCmd(`+trim ${params}`);
+            showCustomPrompt("Trim Audio", "<start_sec> <end_sec> [URL]", (params) => {
+                if (params) runCmd(`+trim ${params}`);
+            });
         }
 
         // 4. Upload Compress
         function promptUploadQuality() {
-            let params = prompt("Enter Upload Compression Args: [URL] [Quality(e.g 480p)]");
-            if (params) runCmd(`+upload ${params}`);
+            showCustomPrompt("Compress & Upload", "[URL] [Quality (e.g 480p)]", (params) => {
+                if (params) runCmd(`+upload ${params}`);
+            });
         }
 
         // 5. Screenshot
         function promptSS() {
-            let params = prompt("Enter SS Args: [URL] [WaitTime]");
-            if (params) runCmd(`+ss ${params}`);
+            showCustomPrompt("Screenshot", "[URL] [WaitTime]", (params) => {
+                if (params) runCmd(`+ss ${params}`);
+            });
         }
 
         // 6. Volume
         function promptVol() {
-            let vol = prompt("Enter Volume (0-500):");
-            if (vol && !isNaN(vol)) runCmd(`+vol ${vol}`);
+            showCustomPrompt("Set Volume", "Enter Volume (0-500)", (vol) => {
+                if (vol && !isNaN(vol)) runCmd(`+vol ${vol}`);
+            });
         }
 
         // --- Media Area --- //

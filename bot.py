@@ -33,11 +33,6 @@ async def patched_login(self, token):
     self.token = token.strip().strip('"')
     self._token_type = ""
     
-    # CRITICAL: Override the User-Agent so websocket connections (including voice)
-    # use a browser-like UA instead of 'DiscordBot (pycord ...)' which Discord
-    # rejects for user accounts on voice servers (close code 4017).
-    self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    
     if not hasattr(self, '_HTTPClient__session') or getattr(self, '_HTTPClient__session').__class__.__name__ == '_MissingSentinel':
         self._HTTPClient__session = aiohttp.ClientSession()
 
@@ -144,10 +139,25 @@ discord.http.HTTPClient.static_login = patched_login
 discord.http.HTTPClient.request = patched_request
 discord.abc.Messageable.send = direct_send
 
-# NOTE: ws_connect already uses self.user_agent for its headers.
-# The user_agent override in patched_login (set to Chrome UA) is sufficient
-# to fix the voice WS 4017 rejection. No need to replace ws_connect entirely
-# as that breaks the main gateway by losing py-cord's internal parameters.
+# 5.5 Voice-Only UA Patch: Swap User-Agent to browser ONLY for voice WS connections.
+#     Setting user_agent globally breaks GET /gateway (403 error 40333).
+#     This patch temporarily swaps UA during DiscordVoiceWebSocket.from_client only.
+import discord.gateway
+
+_orig_voice_from_client = discord.gateway.DiscordVoiceWebSocket.from_client
+
+@classmethod
+async def _patched_voice_from_client(cls, client, *, resume=False):
+    """Swap UA to browser-like for voice WS connection only."""
+    http = client._state.http
+    orig_ua = http.user_agent
+    http.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    try:
+        return await _orig_voice_from_client(client, resume=resume)
+    finally:
+        http.user_agent = orig_ua
+
+discord.gateway.DiscordVoiceWebSocket.from_client = _patched_voice_from_client
 
 # 5. Voice Client Patch: Prevent poll_voice_ws crash from auto-disconnecting
 #    In self_bot mode, vc.ws is '_MissingSentinel' so poll_voice_ws crashes.

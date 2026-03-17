@@ -144,25 +144,10 @@ discord.http.HTTPClient.static_login = patched_login
 discord.http.HTTPClient.request = patched_request
 discord.abc.Messageable.send = direct_send
 
-# 5.5 Voice WS Patch: Override ws_connect to include Origin header like real clients
-#     Discord voice servers check Origin + User-Agent for user accounts.
-_original_ws_connect = discord.http.HTTPClient.ws_connect
-
-async def _patched_ws_connect(self, url, *, compress=0):
-    """Patched ws_connect with browser-like headers for voice gateway."""
-    kwargs = {
-        'max_msg_size': 0,
-        'timeout': 30.0,
-        'autoclose': False,
-        'headers': {
-            'User-Agent': self.user_agent,
-            'Origin': 'https://discord.com',
-        },
-        'compress': compress,
-    }
-    return await self._HTTPClient__session.ws_connect(url, **kwargs)
-
-discord.http.HTTPClient.ws_connect = _patched_ws_connect
+# NOTE: ws_connect already uses self.user_agent for its headers.
+# The user_agent override in patched_login (set to Chrome UA) is sufficient
+# to fix the voice WS 4017 rejection. No need to replace ws_connect entirely
+# as that breaks the main gateway by losing py-cord's internal parameters.
 
 # 5. Voice Client Patch: Prevent poll_voice_ws crash from auto-disconnecting
 #    In self_bot mode, vc.ws is '_MissingSentinel' so poll_voice_ws crashes.
@@ -1617,8 +1602,10 @@ async def api_command(request):
                     await asyncio.sleep(0.5)
                 
                 channel = bot.get_channel(int(channel_id))
-                if not isinstance(channel, discord.VoiceChannel):
-                    return web.json_response({"success": False, "error": "Not a voice channel."})
+                if channel is None:
+                    return web.json_response({"success": False, "error": f"Channel ID {channel_id} not found in cache. Is the bot in that server?"})
+                if not isinstance(channel, (discord.VoiceChannel, discord.StageChannel)):
+                    return web.json_response({"success": False, "error": f"Channel '{channel.name}' is a {type(channel).__name__}, not a voice channel."})
                 
                 vc = await channel.connect(timeout=10)
                 # Give voice gateway a moment to settle

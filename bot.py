@@ -1682,7 +1682,8 @@ async def main():
     await run_bot_dynamically()
 
 if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
     try:
-        asyncio.run(main())
+        loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("Shutdown.")

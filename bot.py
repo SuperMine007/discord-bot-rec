@@ -18,6 +18,12 @@ import traceback
 import wave 
 import edge_tts 
 import random 
+import logging
+
+# Enable verbose discord voice logging for debugging
+logging.basicConfig(level=logging.WARNING)
+logging.getLogger('discord.voice_client').setLevel(logging.DEBUG)
+logging.getLogger('discord.gateway').setLevel(logging.DEBUG)
 
 # ==========================================
 # ☢️ THE "NUCLEAR" PATCH v96 (+Trim Feature Added)
@@ -451,6 +457,24 @@ async def on_command_error(ctx, error):
     
     print(f"⚠️ UNHANDLED ERROR: {error}")
     await ctx.send("❌ An error occurred while executing the command.")
+
+# --- 🔍 VOICE STATE DEBUG LOGGER ---
+@bot.event
+async def on_voice_state_update(member, before, after):
+    if member.id != bot.user.id:
+        return  # Only track the bot's own voice state
+    
+    before_ch = before.channel.name if before.channel else "None"
+    after_ch = after.channel.name if after.channel else "None"
+    
+    if before.channel and not after.channel:
+        print(f"⚠️ [VOICE DEBUG] Bot DISCONNECTED from '{before_ch}'")
+        print(f"   voice_clients count: {len(bot.voice_clients)}")
+        traceback.print_stack()
+    elif not before.channel and after.channel:
+        print(f"✅ [VOICE DEBUG] Bot CONNECTED to '{after_ch}'")
+    elif before.channel != after.channel:
+        print(f"🔄 [VOICE DEBUG] Bot MOVED: '{before_ch}' → '{after_ch}'")
 
 # --- HELPER FUNCTIONS ---
 async def finished_callback(sink, dest_channel, *args):
@@ -1505,9 +1529,9 @@ class DummyContext:
             self.author = type('obj', (object,), {'id': 0})()
             
     async def send(self, *args, **kwargs): pass
-    async def typing(self): 
+    def typing(self):
          class TypingMgr:
-              async def __aenter__(self): pass
+              async def __aenter__(self): return self
               async def __aexit__(self,a,b,c): pass
          return TypingMgr()
 

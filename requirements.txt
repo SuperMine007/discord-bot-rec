@@ -5,3 +5,4 @@ aiohttp
 yt-dlp
 ffmpeg-python
 edge-tts
+dave.py

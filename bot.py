@@ -144,6 +144,52 @@ discord.abc.Messageable.send = direct_send
 #     This patch temporarily swaps UA during DiscordVoiceWebSocket.from_client only.
 import discord.gateway
 
+# --- DAVE PROTOCOL FIX ---
+# Close code 4017 = "DAVE (E2EE) protocol required". Since March 2026, ALL Discord
+# voice connections MUST include max_dave_protocol_version in the IDENTIFY payload.
+# py-cord doesn't do this for self_bot accounts, so Discord rejects with 4017.
+# Fix: Patch the voice IDENTIFY to include max_dave_protocol_version: 1
+
+_orig_voice_identify = discord.gateway.DiscordVoiceWebSocket.identify
+
+async def _patched_voice_identify(self):
+    """Include max_dave_protocol_version in voice IDENTIFY for DAVE compliance."""
+    state = self._connection
+    payload = {
+        'op': self.IDENTIFY,
+        'd': {
+            'server_id': str(state.guild.id),
+            'user_id': str(state.user.id),
+            'session_id': state.session_id,
+            'token': state.token,
+            'max_dave_protocol_version': 1,
+        }
+    }
+    print(f"[DAVE] Sending voice IDENTIFY with max_dave_protocol_version: 1")
+    await self.send_as_json(payload)
+
+discord.gateway.DiscordVoiceWebSocket.identify = _patched_voice_identify
+
+# Also patch the voice poll_event to handle DAVE-specific opcodes (21-30)
+# that py-cord doesn't know about. Without this, unknown opcodes cause crashes.
+_orig_voice_poll_event = discord.gateway.DiscordVoiceWebSocket.poll_event
+
+async def _patched_voice_poll_event(self):
+    """Handle DAVE-specific opcodes gracefully."""
+    try:
+        await _orig_voice_poll_event(self)
+    except KeyError as e:
+        # py-cord hits KeyError on unknown opcodes (DAVE ops 21-30)
+        print(f"[DAVE] Ignoring unknown voice opcode: {e}")
+    except Exception as e:
+        if 'dave' in str(e).lower() or 'unknown op' in str(e).lower():
+            print(f"[DAVE] Handled DAVE-related error: {e}")
+        else:
+            raise
+
+discord.gateway.DiscordVoiceWebSocket.poll_event = _patched_voice_poll_event
+
+# UA swap for voice connections
 _orig_voice_from_client = discord.gateway.DiscordVoiceWebSocket.from_client
 
 @classmethod
@@ -159,7 +205,7 @@ async def _patched_voice_from_client(cls, client, *, resume=False):
 
 discord.gateway.DiscordVoiceWebSocket.from_client = _patched_voice_from_client
 
-# 5. Voice Client Patch: Prevent poll_voice_ws crash from auto-disconnecting
+# 6. Voice Client Patch: Prevent poll_voice_ws crash from auto-disconnecting
 #    In self_bot mode, vc.ws is '_MissingSentinel' so poll_voice_ws crashes.
 #    The crash triggers py-cord's internal cleanup which disconnects the VC.
 #    This patch catches the crash and sleeps silently instead.

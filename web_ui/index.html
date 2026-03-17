@@ -189,6 +189,7 @@
             <div class="input-group">
                 <i class="fa-solid fa-key"></i>
                 <input type="password" id="secretKey" placeholder="Enter Secret Key..." autocomplete="off">
+                <span onclick="togglePassword()" style="position:absolute; right:1rem; top:50%; transform:translateY(-50%); cursor:pointer; color:var(--text-muted);"><i class="fa-solid fa-eye" id="eyeIcon"></i></span>
             </div>
             <button class="btn btn-primary" onclick="login()">
                 <i class="fa-solid fa-unlock-keyhole"></i> Login
@@ -387,12 +388,26 @@
                     document.getElementById('connStatus').style.background = 'rgba(239, 68, 68, 0.1)';
                 } else if(data.logged_in) {
                     document.getElementById('tokenOverlay').style.display = 'none';
-                    document.getElementById('connStatus').innerHTML = '<i class="fa-solid fa-circle-check"></i> System Online';
-                    document.getElementById('connStatus').style.color = '#4ade80';
-                    document.getElementById('connStatus').style.background = 'rgba(34, 197, 94, 0.1)';
+                    
+                    const connStat = document.getElementById('connStatus');
+                    let badgeColor = data.vc_name !== "None" ? "#3b82f6" : "#4ade80";
+                    let badgeBg = data.vc_name !== "None" ? "rgba(59, 130, 246, 0.1)" : "rgba(34, 197, 94, 0.1)";
+                    let badgeIcon = data.vc_name !== "None" ? "fa-headphones" : "fa-circle-check";
+                    let badgeText = data.vc_name !== "None" ? `In VC: ${data.vc_name}` : "System Online";
+                    
+                    connStat.innerHTML = `<i class="fa-solid ${badgeIcon}"></i> ${badgeText}`;
+                    connStat.style.color = badgeColor;
+                    connStat.style.background = badgeBg;
                     
                     document.getElementById('botDisplayName').innerText = data.bot_display;
                     document.getElementById('botUsername').innerText = data.bot_username;
+                    
+                    if(data.follow_name !== "None") {
+                        document.getElementById('followBadge').style.display = 'flex';
+                        document.getElementById('followName').innerText = data.follow_name;
+                    } else {
+                        document.getElementById('followBadge').style.display = 'none';
+                    }
                 }
             } catch(e) {
                 console.log("Polling fail", e);
@@ -417,6 +432,19 @@
                     setTimeout(pollStatus, 2000);
                 }
             } catch(e) { console.error(e); }
+        }
+
+        // Login Toggle
+        function togglePassword() {
+            const input = document.getElementById('secretKey');
+            const icon = document.getElementById('eyeIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fa-solid fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fa-solid fa-eye';
+            }
         }
 
         // Login
@@ -454,6 +482,7 @@
                 const data = await res.json();
                 if (!data.success) {
                     logA(`Error executing: ${data.error}`, 'err');
+                    alert(`Action Failed: ${data.error}`);
                 }
             } catch(e) {
                 logA("Network format error executing command.", "err");
@@ -475,8 +504,6 @@
             let user = prompt("Follow Mode: Enter Username or User ID to follow:");
             if (user && user.trim() !== '') {
                 runCmd(`+follow ${user.trim()}`);
-                document.getElementById('followBadge').style.display = 'flex';
-                document.getElementById('followName').innerText = user.trim();
             }
         }
         

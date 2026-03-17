@@ -1414,11 +1414,24 @@ async def api_status(request):
     safe_display = bot.user.display_name if bot.user else "RecorderBot"
     username = f"@{safe_name}"
     
+    vc_name = "None"
+    if hasattr(bot, 'voice_clients') and len(bot.voice_clients) > 0:
+        vc = bot.voice_clients[0]
+        if vc.is_connected() and hasattr(vc.channel, 'name'):
+            vc_name = vc.channel.name
+            
+    global FOLLOW_MODE, AUTHORIZED_USERS
+    follow_name = "None"
+    if FOLLOW_MODE and len(AUTHORIZED_USERS) > 0:
+        follow_name = "Active"
+    
     return web.json_response({
         "needs_token": NEEDS_TOKEN,
         "logged_in": IS_LOGGED_IN,
         "bot_display": safe_display,
-        "bot_username": username
+        "bot_username": username,
+        "vc_name": vc_name,
+        "follow_name": follow_name
     })
 
 async def api_auth(request):
@@ -1503,12 +1516,25 @@ async def api_command(request):
             elif base == 'join_target' and len(args)>0:
                  # Custom logic for joining specific user from UI
                  uid = args[0]
+                 
+                 # Safety Validation: User provided a Channel ID instead?
+                 if uid.isdigit():
+                     try:
+                         check_vc = bot.get_channel(int(uid))
+                         if isinstance(check_vc, discord.VoiceChannel):
+                             return web.json_response({"success": False, "error": "Warning: You entered a Channel ID! Please use 'Join ID' instead, or provide a User ID/Name here."})
+                     except: pass
+
+                 found = False
                  for g in bot.guilds:
                      for v in g.voice_channels:
                          for m in v.members:
-                             if uid in m.name or uid in m.display_name or str(m.id) == uid:
+                             if uid.lower() in m.name.lower() or uid.lower() in m.display_name.lower() or str(m.id) == uid:
                                  await v.connect()
+                                 found = True
                                  return web.json_response({"success": True})
+                 if not found:
+                     return web.json_response({"success": False, "error": f"Could not find user '{uid}' in any Voice Channel!"})
             elif base == 'follow' and len(args)>0:
                  uid = args[0]
                  global AUTHORIZED_USERS
